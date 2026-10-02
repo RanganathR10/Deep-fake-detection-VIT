@@ -1,1 +1,1057 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deepfake Detection</title>
+    <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
+:root {
+    --bg: #050711;
+    --panel: rgba(13, 18, 35, 0.72);
+    --panel-strong: rgba(17, 24, 45, 0.88);
+    --line: rgba(148, 163, 184, 0.14);
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --primary: #818cf8;
+    --cyan: #22d3ee;
+    --green: #34d399;
+    --red: #fb7185;
+    --shadow: 0 30px 90px rgba(0,0,0,.45);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    color: var(--text);
+    overflow-x: hidden;
+    background:
+        radial-gradient(circle at 8% 10%, rgba(99,102,241,.20), transparent 28%),
+        radial-gradient(circle at 92% 18%, rgba(34,211,238,.13), transparent 27%),
+        radial-gradient(circle at 55% 105%, rgba(139,92,246,.13), transparent 34%),
+        linear-gradient(145deg, #03040a 0%, #080d1c 48%, #04060e 100%);
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -3;
+    opacity: .32;
+    background-image:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 88%);
+    pointer-events: none;
+}
+
+body::after {
+    content: '';
+    position: fixed;
+    width: 500px;
+    height: 500px;
+    left: 50%;
+    top: 35%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(99,102,241,.08), transparent 68%);
+    filter: blur(20px);
+    z-index: -2;
+    pointer-events: none;
+    animation: atmosphere 10s ease-in-out infinite alternate;
+}
+
+#appContent {
+    display: none;
+}
+
+#uploadForm {
+    width: min(860px, calc(100% - 34px));
+    margin: 34px auto 50px;
+    padding: 42px;
+    text-align: center;
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 32px;
+    background:
+        linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025)),
+        var(--panel);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.08);
+    overflow: hidden;
+}
+
+#uploadForm::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 12%;
+    right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--primary), var(--cyan), transparent);
+    opacity: .8;
+}
+
+#uploadForm::after {
+    content: '';
+    position: absolute;
+    width: 260px;
+    height: 260px;
+    right: -160px;
+    top: -160px;
+    border-radius: 50%;
+    background: rgba(99,102,241,.10);
+    filter: blur(15px);
+    pointer-events: none;
+}
+
+h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(2.7rem, 7vw, 4.7rem);
+    line-height: .98;
+    font-weight: 700;
+    letter-spacing: -.065em;
+    margin-bottom: 16px;
+    background: linear-gradient(100deg, #fff 4%, #c7d2fe 32%, #67e8f9 65%, #fff 96%);
+    background-size: 230% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 7s ease-in-out infinite;
+    filter: drop-shadow(0 0 28px rgba(129,140,248,.18));
+}
+
+#uploadForm > p:not(.processing-text) {
+    max-width: 620px;
+    margin: 0 auto 35px;
+    color: rgba(203,213,225,.72);
+    font-size: 1rem;
+    line-height: 1.75;
+}
+
+.upload-container {
+    position: relative;
+    margin-bottom: 22px;
+}
+
+input[type="file"] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    z-index: 5;
+}
+
+.upload-label {
+    min-height: 250px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 42px 25px 50px;
+    border: 1.5px dashed rgba(148,163,184,.34);
+    border-radius: 26px;
+    background:
+        radial-gradient(circle at center, rgba(99,102,241,.09), transparent 52%),
+        rgba(255,255,255,.025);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: .35s cubic-bezier(.2,.8,.2,1);
+}
+
+.upload-label::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,.10) 50%, transparent 75%);
+    transform: translateX(-120%);
+    transition: transform .75s ease;
+}
+
+.upload-label::after {
+    content: 'JPG  •  PNG  •  WEBP';
+    position: absolute;
+    bottom: 16px;
+    font-size: .64rem;
+    font-weight: 700;
+    letter-spacing: .18em;
+    color: rgba(148,163,184,.52);
+}
+
+.upload-label:hover {
+    transform: translateY(-5px);
+    border-color: rgba(103,232,249,.58);
+    background:
+        radial-gradient(circle at center, rgba(99,102,241,.14), transparent 55%),
+        rgba(255,255,255,.045);
+    box-shadow:
+        0 25px 55px rgba(0,0,0,.24),
+        0 0 40px rgba(34,211,238,.06),
+        inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.upload-label:hover::before {
+    transform: translateX(120%);
+}
+
+.upload-icon {
+    width: 88px;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 19px;
+    border-radius: 26px;
+    font-size: 3.25rem;
+    background: linear-gradient(145deg, rgba(99,102,241,.20), rgba(34,211,238,.08));
+    border: 1px solid rgba(129,140,248,.24);
+    box-shadow: 0 18px 38px rgba(0,0,0,.22);
+    transition: .35s ease;
+}
+
+.upload-label:hover .upload-icon {
+    transform: translateY(-5px) scale(1.05);
+    box-shadow: 0 20px 42px rgba(99,102,241,.22);
+}
+
+.upload-text {
+    font-family: 'Space Grotesk', sans-serif;
+    color: #f1f5f9;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+#imagePreview {
+    display: none;
+    max-width: 100%;
+    max-height: 440px;
+    margin: 25px auto;
+    border-radius: 22px;
+    object-fit: contain;
+    border: 1px solid rgba(255,255,255,.13);
+    box-shadow: 0 28px 70px rgba(0,0,0,.48);
+    transition: .35s ease;
+}
+
+#imagePreview:hover {
+    transform: scale(1.012);
+    box-shadow: 0 34px 80px rgba(0,0,0,.56);
+}
+
+button {
+    border: 1px solid rgba(255,255,255,.13);
+    color: #fff;
+    background: linear-gradient(105deg, #6366f1, #8b5cf6 46%, #06b6d4);
+    background-size: 180% auto;
+    padding: 16px 34px;
+    border-radius: 15px;
+    font-family: 'Inter', sans-serif;
+    font-size: .88rem;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow:
+        0 17px 38px rgba(79,70,229,.28),
+        inset 0 1px 0 rgba(255,255,255,.22);
+    position: relative;
+    overflow: hidden;
+    transition: .3s ease;
+}
+
+button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -90%;
+    width: 55%;
+    transform: skewX(-18deg);
+    background: rgba(255,255,255,.23);
+    transition: left .6s ease;
+}
+
+button:hover {
+    transform: translateY(-3px);
+    background-position: 100% center;
+    box-shadow: 0 22px 50px rgba(79,70,229,.38);
+}
+
+button:hover::before {
+    left: 140%;
+}
+
+button:active {
+    transform: translateY(-1px) scale(.99);
+}
+
+#imageSpinner {
+    display: none;
+    margin: 28px 0 8px;
+    padding: 24px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: rgba(255,255,255,.035);
+    backdrop-filter: blur(15px);
+}
+
+.spinner {
+    width: 46px;
+    height: 46px;
+    display: inline-block;
+    border: 3px solid rgba(255,255,255,.09);
+    border-top-color: #818cf8;
+    border-right-color: #22d3ee;
+    border-radius: 50%;
+    animation: spin .75s linear infinite;
+    box-shadow: 0 0 28px rgba(99,102,241,.16);
+    margin-bottom: 14px;
+}
+
+.processing-text {
+    margin: 0 !important;
+    color: rgba(203,213,225,.72);
+    font-size: .9rem !important;
+}
+
+#detectionResult {
+    margin-top: 26px;
+    min-height: 72px;
+    padding: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20px;
+    border: 1px solid rgba(129,140,248,.17);
+    background:
+        linear-gradient(135deg, rgba(99,102,241,.10), rgba(34,211,238,.045)),
+        rgba(255,255,255,.035);
+    color: #f8fafc;
+    font-size: 1.08rem;
+    line-height: 1.7;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+#detectionResult:not(:empty) {
+    animation: resultIn .55s cubic-bezier(.2,.8,.2,1);
+}
+
+#confidenceChartContainer {
+    display: none;
+    margin-top: 22px;
+    padding: 23px 21px 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(129,140,248,.16);
+    background:
+        linear-gradient(135deg, rgba(99,102,241,.07), rgba(34,211,238,.035)),
+        rgba(255,255,255,.03);
+    backdrop-filter: blur(14px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.chart-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.chart-title {
+    font-family: 'Space Grotesk', sans-serif;
+    color: #f8fafc;
+    font-size: .98rem;
+    font-weight: 700;
+}
+
+.chart-subtitle {
+    color: rgba(148,163,184,.65);
+    font-size: .7rem;
+}
+
+.chart-wrapper {
+    height: 320px;
+    position: relative;
+}
+
+.deepfake-note {
+    margin-top: 28px;
+    padding: 25px;
+    text-align: left;
+    border-radius: 20px;
+    border: 1px solid rgba(129,140,248,.14);
+    background: rgba(255,255,255,.028);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.note-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    margin-bottom: 11px;
+    border-radius: 999px;
+    background: rgba(34,211,238,.07);
+    border: 1px solid rgba(34,211,238,.16);
+    color: rgba(103,232,249,.82);
+    font-size: .61rem;
+    font-weight: 800;
+    letter-spacing: .15em;
+}
+
+.deepfake-note h3 {
+    margin-bottom: 10px;
+    color: #f8fafc;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.08rem;
+}
+
+.deepfake-note p {
+    margin: 0 !important;
+    color: rgba(203,213,225,.67) !important;
+    font-size: .84rem !important;
+    line-height: 1.78 !important;
+}
+
+/* Login */
+#loginScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(99,102,241,.20), transparent 30%),
+        radial-gradient(circle at 85% 80%, rgba(34,211,238,.12), transparent 30%),
+        linear-gradient(145deg, #03040a, #080d1c 52%, #04060e);
+    transition: opacity .4s ease, visibility .4s ease;
+}
+
+#loginScreen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.login-card {
+    width: min(440px, 100%);
+    padding: 43px 35px 35px;
+    border-radius: 30px;
+    border: 1px solid rgba(255,255,255,.11);
+    background: rgba(12,17,33,.76);
+    backdrop-filter: blur(28px);
+    box-shadow: 0 40px 100px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    animation: cardIn .65s cubic-bezier(.2,.8,.2,1);
+}
+
+.login-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 12%;
+    right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #818cf8, #22d3ee, transparent);
+}
+
+.login-logo {
+    width: 78px;
+    height: 78px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;
+    font-size: 2rem;
+    background: linear-gradient(145deg, rgba(99,102,241,.20), rgba(34,211,238,.08));
+    border: 1px solid rgba(129,140,248,.23);
+    box-shadow: 0 18px 40px rgba(0,0,0,.24);
+}
+
+.login-card h2 {
+    margin-bottom: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.8rem;
+    letter-spacing: -.045em;
+}
+
+.login-card .login-subtitle {
+    margin-bottom: 28px;
+    color: rgba(203,213,225,.62);
+    font-size: .88rem;
+}
+
+.login-field {
+    margin-bottom: 16px;
+    text-align: left;
+}
+
+.login-field label {
+    display: block;
+    margin: 0 0 8px 3px;
+    color: rgba(226,232,240,.76);
+    font-size: .76rem;
+    font-weight: 600;
+}
+
+.login-field input {
+    width: 100%;
+    padding: 14px 15px;
+    outline: none;
+    border-radius: 13px;
+    border: 1px solid rgba(148,163,184,.18);
+    background: rgba(0,0,0,.20);
+    color: #fff;
+    font-family: inherit;
+    font-size: .92rem;
+    transition: .25s ease;
+}
+
+.login-field input:focus {
+    border-color: rgba(129,140,248,.65);
+    box-shadow: 0 0 0 4px rgba(99,102,241,.09);
+}
+
+#loginButton {
+    width: 100%;
+    margin-top: 7px;
+}
+
+#loginError {
+    min-height: 20px;
+    margin: 12px 0 0;
+    color: #fb7185;
+    font-size: .78rem;
+}
+
+#logoutButton {
+    display: none;
+    margin: 0 auto 18px;
+    padding: 9px 16px;
+    border-radius: 10px;
+    font-size: .68rem;
+    box-shadow: none;
+    background: rgba(255,255,255,.055);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+    0%,100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+@keyframes atmosphere {
+    from { transform: translate(-50%,-50%) scale(1); opacity: .7; }
+    to { transform: translate(-48%,-52%) scale(1.08); opacity: 1; }
+}
+
+@keyframes resultIn {
+    from { opacity: 0; transform: translateY(14px) scale(.98); filter: blur(4px); }
+    to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(22px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 768px) {
+    #uploadForm {
+        width: calc(100% - 24px);
+        margin: 22px auto 38px;
+        padding: 34px 20px 28px;
+        border-radius: 25px;
+    }
+
+    h1 {
+        font-size: 2.55rem;
+    }
+
+    .upload-label {
+        min-height: 220px;
+        padding: 34px 15px 45px;
+    }
+
+    .upload-icon {
+        width: 74px;
+        height: 74px;
+        font-size: 2.75rem;
+    }
+
+    button {
+        width: 100%;
+        max-width: 330px;
+    }
+
+    .chart-heading {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .chart-wrapper {
+        height: 280px;
+    }
+
+    .deepfake-note {
+        padding: 21px 17px;
+    }
+}
+
+@media (max-width: 480px) {
+    #uploadForm {
+        width: calc(100% - 14px);
+        margin: 10px auto 28px;
+        padding: 28px 14px 23px;
+        border-radius: 21px;
+    }
+
+    h1 {
+        font-size: 2.05rem;
+    }
+
+    #uploadForm > p:not(.processing-text) {
+        font-size: .88rem;
+        margin-bottom: 24px;
+    }
+
+    .upload-label {
+        min-height: 195px;
+        border-radius: 19px;
+    }
+
+    .upload-icon {
+        width: 65px;
+        height: 65px;
+        font-size: 2.35rem;
+        border-radius: 20px;
+    }
+
+    .upload-text {
+        font-size: .92rem;
+    }
+
+    #detectionResult {
+        padding: 17px;
+        font-size: .92rem;
+    }
+
+    .chart-wrapper {
+        height: 235px;
+    }
+
+    .login-card {
+        padding: 34px 21px 29px;
+        border-radius: 24px;
+    }
+
+    .login-logo {
+        width: 68px;
+        height: 68px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+        .product-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: rgba(129,140,248,.07);
+            border: 1px solid rgba(129,140,248,.13);
+            color: rgba(165,180,252,.78);
+            font-size: .61rem;
+            font-weight: 800;
+            letter-spacing: .18em;
+        }
+
+        .eyebrow-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #34d399;
+            box-shadow: 0 0 12px rgba(52,211,153,.7);
+            animation: pulseDot 1.8s ease-in-out infinite;
+        }
+
+        @keyframes pulseDot {
+            0%,100% { transform: scale(1); opacity: .7; }
+            50% { transform: scale(1.35); opacity: 1; }
+        }
+
+
+        .deepfake-note + .deepfake-note {
+            margin-top: 16px;
+        }
+
+        .deepfake-note h3 {
+            letter-spacing: -.025em;
+        }
+
+</style>
+</head>
+<body>
+
+    <div id="loginScreen">
+        <div class="login-card">
+            <div class="login-logo">🛡️</div>
+            <h2>Deepfake Detection</h2>
+            <p class="login-subtitle">Sign in to access the detection system</p>
+
+            <form id="loginForm" onsubmit="loginUser(event)">
+                <div class="login-field">
+                    <label for="username">Username</label>
+                    <input
+                        type="text"
+                        id="username"
+                        placeholder="Enter your username"
+                        autocomplete="username"
+                        required
+                    >
+                </div>
+
+                <div class="login-field">
+                    <label for="password">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                        required
+                    >
+                </div>
+
+                <button type="submit" id="loginButton">Login</button>
+                <p id="loginError"></p>
+            </form>
+        </div>
+    </div>
+
+    <div id="appContent">
+    <form id="uploadForm">
+        <div class="product-eyebrow">
+            <span class="eyebrow-dot"></span>
+            AI FORENSIC ANALYSIS
+        </div>
+        <h1>Deepfake Detection</h1>
+        <p>Upload an image to check if it's real or a deepfake.</p>
+        
+        <div class="upload-container">
+            <input type="file" id="imageInput" accept="image/*" onchange="previewImage(event)">
+            <label for="imageInput" class="upload-label">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">Click to upload an image</div>
+            </label>
+        </div>
+        
+        <img id="imagePreview" src="#" alt="Image Preview" style="display: none;">
+        <br>
+
+        <button type="button" onclick="submitImage()">Analyze Image</button>
+
+        <div id="imageSpinner" style="display: none;">
+            <div class="spinner"></div>
+            <p class="processing-text">Processing...</p>
+        </div>
+
+        <h2 id="detectionResult"></h2>
+
+        <div id="confidenceChartContainer">
+            <div class="chart-heading">
+                <span class="chart-title">Prediction Confidence</span>
+                <span class="chart-subtitle">Real vs Fake probability</span>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </div>
+    <section id="deepfakeNote" class="deepfake-note">
+            <div class="note-badge">ABOUT THE TECHNOLOGY</div>
+            <h3>What Is Deepfake Detection?</h3>
+            <p>
+                Deepfake detection is the process of using artificial intelligence and digital forensics
+                to identify whether an image has been generated or manipulated by AI. A trained detection
+                model looks for subtle visual patterns that are difficult to notice with the human eye,
+                including unusual facial textures, inconsistent lighting, unnatural edges, pixel-level
+                artifacts, and other characteristics associated with synthetic or manipulated content.
+                The model then produces a prediction and confidence score indicating how strongly the
+                image matches patterns learned from real and manipulated examples.
+            </p>
+        </section>
+
+        <section class="deepfake-note">
+            <div class="note-badge">WHY IT MATTERS</div>
+            <h3>Why Should We Be Careful With Deepfake Images?</h3>
+            <p>
+                Deepfake images can be used to create false identities, spread misinformation, impersonate
+                people, manipulate evidence, damage reputations, and support online scams. A realistic-looking
+                image is not automatically trustworthy. Before using or sharing suspicious visual content,
+                it is important to verify its source, context, metadata when available, and supporting
+                evidence. Detection tools can help identify suspicious content, but their results should
+                not be treated as absolute proof.
+            </p>
+        </section>
+
+        <section class="deepfake-note">
+            <div class="note-badge">REAL-WORLD PRACTICE</div>
+            <h3>How Deepfake Detection Works in Real Life</h3>
+            <p>
+                In real-world investigations, deepfake detection is usually one part of a larger verification
+                process. An AI detector analyzes the image, while investigators may also examine the original
+                source, file metadata, image history, visual inconsistencies, reverse-image evidence, and
+                other forensic signals. The goal is not simply to label an image as real or fake, but to
+                build enough evidence to make a reliable judgment. This is why a detection score should be
+                interpreted as evidence that supports verification, not as a guarantee.
+            </p>
+        </section>
+    </form>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+
+        // Front-end demo login.
+        // Replace the demo credentials and this validation with backend authentication
+        // before using the application in a real production environment.
+        const DEMO_USERNAME = 'Ranga';
+        const DEMO_PASSWORD = 'admin123';
+
+        function loginUser(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const loginError = document.getElementById('loginError');
+
+            if (username === DEMO_USERNAME && password === DEMO_PASSWORD) {
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('appContent').style.display = 'block';
+                document.getElementById('logoutButton').style.display = 'block';
+                loginError.textContent = '';
+            } else {
+                loginError.textContent = 'Invalid username or password.';
+            }
+        }
+
+        function logoutUser() {
+            document.getElementById('appContent').style.display = 'none';
+            document.getElementById('logoutButton').style.display = 'none';
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('loginForm').reset();
+            document.getElementById('loginError').textContent = '';
+        }
+
+        let confidenceChart = null;
+
+        function previewImage(event) {
+            const imageInput = document.getElementById('imageInput');
+            const imagePreview = document.getElementById('imagePreview');
+            const file = imageInput.files[0];
+
+            if (file) {
+                const url = URL.createObjectURL(file);
+                imagePreview.src = url;
+                imagePreview.style.display = 'block';
+            }
+        }
+
+
+        function updateConfidenceChart(prediction, confidence) {
+            const chartContainer = document.getElementById('confidenceChartContainer');
+            const canvas = document.getElementById('confidenceChart');
+
+            let confidenceValue = Number(confidence);
+            if (!Number.isFinite(confidenceValue)) {
+                chartContainer.style.display = 'none';
+                return;
+            }
+
+            // Backend confidence is expected as 0-1. Also tolerate 0-100.
+            if (confidenceValue <= 1) {
+                confidenceValue *= 100;
+            }
+            confidenceValue = Math.max(0, Math.min(100, confidenceValue));
+
+            const normalizedPrediction = String(prediction || '').toLowerCase();
+            const isFake = normalizedPrediction.includes('fake');
+            const isReal = normalizedPrediction.includes('real');
+
+            // The backend confidence is the confidence of the predicted class.
+            // The opposite class is therefore the remaining probability.
+            let realConfidence;
+            let fakeConfidence;
+
+            if (isFake) {
+                fakeConfidence = confidenceValue;
+                realConfidence = 100 - confidenceValue;
+            } else if (isReal) {
+                realConfidence = confidenceValue;
+                fakeConfidence = 100 - confidenceValue;
+            } else {
+                // If the backend uses another label, show the confidence as the
+                // predicted class while retaining a valid two-class comparison.
+                realConfidence = confidenceValue;
+                fakeConfidence = 100 - confidenceValue;
+            }
+
+            chartContainer.style.display = 'block';
+
+            const ctx = canvas.getContext('2d');
+
+            if (confidenceChart) {
+                confidenceChart.destroy();
+            }
+
+            confidenceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Real', 'Fake'],
+                    datasets: [{
+                        label: 'Confidence',
+                        data: [realConfidence, fakeConfidence],
+                        borderRadius: 10,
+                        borderSkipped: false,
+                        backgroundColor: [
+                            'rgba(34, 197, 94, 0.78)',
+                            'rgba(239, 68, 68, 0.78)'
+                        ],
+                        borderColor: [
+                            'rgba(74, 222, 128, 0.95)',
+                            'rgba(248, 113, 113, 0.95)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 850,
+                        easing: 'easeOutQuart'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' Confidence: ' + Number(context.raw).toFixed(2) + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: 'rgba(226,232,240,0.78)',
+                                font: {
+                                    family: 'Inter',
+                                    weight: '600'
+                                }
+                            },
+                            border: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                stepSize: 20,
+                                color: 'rgba(148,163,184,0.68)',
+                                callback: function(value) {
+                                    return value + '%';
+                                },
+                                font: {
+                                    family: 'Inter'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(148,163,184,0.10)'
+                            },
+                            border: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function submitImage() {
+            const imageInput = document.getElementById('imageInput');
+            const imageSpinner = document.getElementById('imageSpinner');
+            const detectionResult = document.getElementById('detectionResult');
+
+            const file = imageInput.files[0];
+
+            if (!file) {
+                alert('Please upload an image file.');
+                return;
+            }
+
+            imageSpinner.style.display = 'block';
+            detectionResult.innerHTML = '';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            fetch('/predict', {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => response.json())
+                .then(data => {
+                    imageSpinner.style.display = 'none';
+
+                    const confidence = Number(data.confidence);
+                    const formattedConfidence = Number.isFinite(confidence)
+                        ? confidence.toFixed(2)
+                        : 'N/A';
+
+                    detectionResult.innerHTML = `Prediction: ${data.prediction} <br> Confidence: ${formattedConfidence}`;
+                    updateConfidenceChart(data.prediction, confidence);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    detectionResult.innerHTML = 'An error occurred while processing the image.';
+                    document.getElementById('confidenceChartContainer').style.display = 'none';
+                    imageSpinner.style.display = 'none';
+                });
+        }
+    </script>
+</body>
+</html>
